@@ -1,6 +1,70 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python Studio</title><style>body{margin:0;background:#111827;color:#e5e7eb;font:16px system-ui}header,main{padding:16px}header{background:#1f2937}button,input{font:inherit;padding:10px;border-radius:8px;border:1px solid #64748b;background:#263449;color:white}button{cursor:pointer}#run{background:#15803d}textarea{box-sizing:border-box;width:100%;min-height:42vh;background:#0b1220;color:#e2e8f0;border:1px solid #475569;border-radius:8px;padding:14px;font:16px/1.6 monospace;tab-size:4}pre{white-space:pre-wrap;min-height:100px;background:#0b1220;padding:14px;border-radius:8px} .bar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}small{color:#a5b4fc}</style><header><b>Python Studio</b> · 作业编辑器</header><main><small id="status">Python 引擎将在首次运行时联网加载</small><div class="bar"><input id="name" value="Homework.py" aria-label="文件名"><button id="run">▶ Run</button><button id="save">导出 .py</button><button id="open">导入</button><button id="fresh">新建</button><input type="file" id="file" accept=".py,.txt" hidden></div><textarea id="editor" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Python 代码">score = 75
-if score >= 60:
-    print("Pass")
-else:
-    print("Fail")</textarea><div class="bar"><button id="indent">缩进 4 空格</button><button id="clear">清空输出</button></div><label>预设输入（每行对应一次 input()）</label><textarea id="stdin" style="min-height:65px" placeholder="可留空"></textarea><h3>Console</h3><pre id="out" aria-live="polite"></pre><small>运行需要联网加载 Pyodide；请定期导出文件。不要运行来源不明的代码。</small></main><script>
-const $=id=>document.getElementById(id), e=$('editor'), n=$('name'), o=$('out'), s=$('status');try{const d=JSON.parse(localStorage.getItem('python-studio')||'null');if(d){e.value=d.code;n.value=d.name}}catch{}function persist(){try{localStorage.setItem('python-studio',JSON.stringify({code:e.value,name:n.value}));}catch{}}e.oninput=n.oninput=persist;function indent(){e.setRangeText('    ',e.selectionStart,e.selectionEnd,'end');e.focus();persist()}$('indent').onclick=indent;e.addEventListener('keydown',ev=>{if(ev.key==='Tab'){ev.preventDefault();indent()}});$('save').onclick=()=>{let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([e.value],{type:'text/plain;charset=utf-8'}));a.download=(n.value||'Homework').replace(/\.py$/i,'')+'.py';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};$('open').onclick=()=>$('file').click();$('file').onchange=async()=>{let f=$('file').files[0];if(f&&confirm('打开文件将替换当前代码，继续？')){e.value=await f.text();n.value=f.name;persist()}$('file').value=''};$('fresh').onclick=()=>{if(confirm('新建将替换当前代码，请先导出重要作业。继续？')){e.value='';n.value='Homework.py';persist()}};$('clear').onclick=()=>o.textContent='';let worker;function finish(){if(worker)worker.terminate();worker=null;$('run').textContent='▶ Run'}$('run').onclick=()=>{if(worker){finish();s.textContent='已停止';return}o.textContent='';s.textContent='正在加载 Python…';$('run').textContent='■ Stop';const source=`onmessage=async({data})=>{try{importScripts('https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js');const p=await loadPyodide();postMessage({status:'运行中'});p.setStdout({batched:x=>postMessage({out:x})});p.setStderr({batched:x=>postMessage({out:x})});let lines=data.input.split('\\n');p.setStdin({stdin:()=>lines.length?lines.shift():null});await p.runPythonAsync(data.code);postMessage({done:true})}catch(e){postMessage({out:String(e),done:true,error:true})}}`;worker=new Worker(URL.createObjectURL(new Blob([source],{type:'text/javascript'})));worker.onmessage=({data:d})=>{if(d.out!==undefined)o.textContent+=d.out+'\n';if(d.status)s.textContent=d.status;if(d.done){s.textContent=d.error?'运行失败':'运行结束';finish()}};worker.onerror=()=>{s.textContent='引擎加载失败，请检查网络或浏览器限制';finish()};worker.postMessage({code:e.value,input:$('stdin').value})};</script></html>
+<!doctype html>
+<html lang="zh">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  /><title>Python Studio</title
+  ><link rel="stylesheet" href="style.css" />
+  <body>
+    <header>
+      <button id="sidebar" aria-label="文件侧栏">☰</button
+      ><strong>Python <span>Studio</span></strong
+      ><small>AP G1 · WORKSPACE</small>
+      <nav>
+        <button id="run">▶ Run</button><button id="stop">■ Stop</button
+        ><button id="restart">Restart</button><button id="save">Save</button
+        ><button id="export">Export</button
+        ><button id="settings">Settings</button>
+      </nav>
+    </header>
+    <main>
+      <aside>
+        <h3>EXPLORER</h3>
+        <div class="actions">
+          <button id="new">+ File</button><button id="folder">+ Folder</button
+          ><button id="import">Import</button>
+        </div>
+        <div id="files"></div>
+        <button id="trash">Recycle bin</button
+        ><button id="restorezip">Restore ZIP</button>
+        <p class="hint">
+          Python 3 · Your work stays on this device.<br />Export a ZIP backup
+          regularly.
+        </p>
+      </aside>
+      <section id="work">
+        <div id="tabs"></div>
+        <div id="editor"></div>
+        <div id="symbols"></div>
+        <div
+          id="split"
+          role="separator"
+          aria-label="调整控制台高度"
+          tabindex="0"
+        ></div>
+        <section id="console">
+          <div class="consolehead">
+            <b>TERMINAL</b><span id="runtime"></span
+            ><button id="clear">Clear console</button>
+          </div>
+          <pre id="output" aria-live="polite"></pre>
+          <form id="inputform" hidden>
+            <label>Input <input id="stdin" autocomplete="off" /></label
+            ><button>Send ↵</button>
+          </form>
+          <div id="analysis"></div>
+        </section>
+      </section>
+    </main>
+    <footer>
+      <span id="position">Ln 1, Col 1</span><span>Python 3 / UTF-8</span
+      ><span id="saved">Opening storage…</span><span id="status">Loading</span>
+    </footer>
+    <dialog id="dialog">
+      <div id="dialogbody"></div>
+      <button id="close">Close</button>
+    </dialog>
+    <input type="file" id="picker" hidden multiple />
+    <script src="app.js"></script>
+  </body>
+</html>
